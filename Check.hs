@@ -94,7 +94,21 @@ gameEnded game = any(hasWon board) pieces where
 
     -- Returns the winner of a game
 TheWinner :: Game -> PieceType
-TheWinner game@(Game (GameTurn b ))
+TheWinner game@(Game (GameTurn b (Player m))) = winner where
+    winner = if gameOver game then
+                                if m == Red then Black
+                                            else Red
+                                else None
+        
+        -- Clears the position when peice is captured
+clearStatePos :: GameTurn -> Position -> GameTurn
+clearStatePos orig posSrc = replaceStatePos orig posSrc None
+
+replaceStatePos :: GameTurn -> Position -> PieceType -> GameTurn
+replaceStatePos orig@(GameTurn ogBoard ogPlayer) posSrc nPiece =
+    GameTurn nBoard ogPlayer where
+    nBoard = updateLocation ogBoard posSrc nPiece
+
 
     -- Checks if a space is empty
 IsEmptySpace :: Board -> Position -> Bool
