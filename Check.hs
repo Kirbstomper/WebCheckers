@@ -109,6 +109,19 @@ replaceStatePos orig@(GameTurn ogBoard ogPlayer) posSrc nPiece =
     GameTurn nBoard ogPlayer where
     nBoard = updateLocation ogBoard posSrc nPiece
 
+    -- Makes a move from one position to the next
+    
+updateState :: GameTurn -> Position -> Position -> GameTurn
+updateState orig@(GameTurn ogBoard ogPlayer) posSrc posDes = 
+    GameTurn newBoard next where
+    sourcePeice = inSpace (peicesOnBoard ogBoard) posSrc
+    removeBoard = updateLocation ogBoard posSrc None
+    newBoard = updateLocation removeBoard posDes sourcePeice
+    next = case ogPlayer of
+        Player Black        -> Player Red
+        Plater (King Black) -> Player Red
+        _                   -> Player Black
+
 
     -- Checks if a space is empty
 IsEmptySpace :: Board -> Position -> Bool
