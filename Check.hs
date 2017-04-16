@@ -126,9 +126,28 @@ updateState orig@(GameTurn ogBoard ogPlayer) posSrc posDes =
     -- Checks if a space is empty
 IsEmptySpace :: Board -> Position -> Bool
 IsEmptySpace b p  = space == None where
-    space = markerAt (markers  b) 
+    space = inSpace (peicesOnBoard b) 
 
+    -- Give the valid moves for the piece at a given location on the board
+moveOptions :: Board -> Position -> [Position]
+moveOptions b p = posWalk b p ++ posJump b p
 
+    -- Returns the possible basic moves a given peice at a location can make
+posWalk :: Board -> Position -> [Position]
+posWalk b p = filter (emptyInBounds b) (possibleMoves piece) where
+    peice = inSpace (peicesOnBoard b) p
+    (x, y) = p
+    possibleMoves (King _) = possibleMoves Black ++ possibleMoves Red
+    possibleMoves Black = [(x-1,y+1), (x+1,y+1)]
+    possibleMoves Red = [(x-1,y-1), (x+1,y-1)]
+    possibleMoves _ = []
+    
+    -- Returns if the board is empty at a certain position
+boardEmptyAt :: Board -> Position -> Bool
+boardEmptyAt b p = m == None where
+    m = inSpace (peicesOnBoard b) p
+
+    
     --Sees if a move can occur
     
     -- Makes a move 
