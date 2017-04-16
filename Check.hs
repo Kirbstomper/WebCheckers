@@ -147,14 +147,21 @@ boardEmptyAt :: Board -> Position -> Bool
 boardEmptyAt b p = m == None where
     m = inSpace (peicesOnBoard b) p
 
+    -- Returns the places a peice can jump over another peice
     
+boardJump
     --Sees if a move can occur
     
     -- Makes a move 
 preformMove :: Game -> Move -> Game
 
 
-
+    -- returns passed peice in opposing colour
+toggleColor :: PieceType -> PieceType
+toggleColor Black        = Red
+toggleColor Red          = Black
+toggleColor (King color) = King $ toggleColor color
+toggleColor c            = c
     -- Returns a list of possible legal moves from a given position
     
     
