@@ -101,18 +101,24 @@ TheWinner game@(Game (GameTurn b (Player m))) = winner where
                                 else None
         
         -- Clears the position when peice is captured
-clearStatePos :: GameTurn -> Position -> GameTurn
-clearStatePos orig posSrc = replaceStatePos orig posSrc None
+clearTurnPos :: GameTurn -> Position -> GameTurn
+clearTurnPos orig posSrc = replaceStatePos orig posSrc None
 
-replaceStatePos :: GameTurn -> Position -> PieceType -> GameTurn
-replaceStatePos orig@(GameTurn ogBoard ogPlayer) posSrc nPiece =
+replaceTurnPos :: GameTurn -> Position -> PieceType -> GameTurn
+replaceTurnPos orig@(GameTurn ogBoard ogPlayer) posSrc nPiece =
     GameTurn nBoard ogPlayer where
     nBoard = updateLocation ogBoard posSrc nPiece
 
+
+    --
+    
+getTurnPieceAt :: GameTurn -> Position -> PieceType
+getTurnPieceAt (GameTurn b _) p = 
+    inSpace (peicesOnBoard b) p
     -- Makes a move from one position to the next
     
-updateState :: GameTurn -> Position -> Position -> GameTurn
-updateState orig@(GameTurn ogBoard ogPlayer) posSrc posDes = 
+updateTurn :: GameTurn -> Position -> Position -> GameTurn
+updateTurn orig@(GameTurn ogBoard ogPlayer) posSrc posDes = 
     GameTurn newBoard next where
     sourcePeice = inSpace (peicesOnBoard ogBoard) posSrc
     removeBoard = updateLocation ogBoard posSrc None
@@ -142,6 +148,11 @@ posWalk b p = filter (emptyInBounds b) (possibleMoves piece) where
     possibleMoves Red = [(x-1,y-1), (x+1,y-1)]
     possibleMoves _ = []
     
+isTowards :: PieceType -> Position ->Position -> Bool
+isTowards Red (_, sy) (_, dy)   = dy > sy
+isTowards Black (_, sy) (_, dy) = dy < sy
+
+emptyInBounds board pos = inBounds pos && boardEmptyAt board pos
     -- Returns if the board is empty at a certain position
 boardEmptyAt :: Board -> Position -> Bool
 boardEmptyAt b p = m == None where
@@ -149,12 +160,33 @@ boardEmptyAt b p = m == None where
 
     -- Returns the places a peice can jump over another peice
     
-boardJump
-    --Sees if a move can occur
+boardJump :: Board -> Position -> [Position]
+boardJump b p = jumpPos where
+    jumpPos = filter (emptyInBounds b ) (possibleMoves peice)
+    peice = inSpace (peicesOnBoard b) p
     
-    -- Makes a move 
-preformMove :: Game -> Move -> Game
+    possibleMoves :: peiceType -> [Position]
+    possibleMoves Black        = possibleMovesColor Black
+    possibleMoves Red          = possibleMovesColor Red
+    possibleMoves (King color) = possibleJumps
+    possibleMoves _            = []
 
+
+    possibleMovesColor :: peiceType -> [Position]
+    possibleMovesColor color = filter towards moves where
+        towards = isTowards (toggleColor color) src
+        moves = possibleJumps
+        
+    possibleJumps = map(\(_, a, _) -> a) jumps where
+        jumps = filter canJump possibleJumpTuples
+        possibleJumpTuples = zip3 diag1 diag2 piecesAtDiagonals
+        diag1 = diagonals p
+        diag2 = diagonalN 2 p
+        piecesAtDiagonals = map (inSpace (peicesOnBoard b)) diag1
+        
+        canJump :: (Position, Position, PieceType) -> Bool
+        canJump (_, _, pt) = pieceMayJumpPiece peice pt
+    
 
     -- returns passed peice in opposing colour
 toggleColor :: PieceType -> PieceType
@@ -162,22 +194,81 @@ toggleColor Black        = Red
 toggleColor Red          = Black
 toggleColor (King color) = King $ toggleColor color
 toggleColor c            = c
-    -- Returns a list of possible legal moves from a given position
+
+    -- Returns if a certain peice can jump another
+pieceMayJumpPiece :: PieceType -> PieceType -> Bool
+pieceMayJumpPiece None _ = False
+pieceMayJumpPiece piece (King p) = p /= None && pieceMayJumpPiece piece p
+pieceMayJumpPiece piece Red = piece /= Red
+pieceMayJumpPiece piece Black = piece /= Black
+pieceMayJumpPiece _ _ = False
+
+diagonalN :: Int -> Position -> [Position]
+diagonalN d (r, c) = [(r+d, c+d), (r-d, c-d), (r+d, c-d), (r-d, c+d)]
+   
+diagonals :: Position -> [Position]
+diagonals = diagonalN 1
+
+    -- 
+getTurnMoves :: GameTurn -> Position -> [Move]
+getTurnMoves turn@(GameTurn board@(Board lm) player) posSrc = moves where
+    moves = if (pieceMatches player piece)
+                then map(Move posSrc) (boardMoves board posSrc) else []
+    piece = inSpace lm posSrc
+    pieceMatches (Player p1) p2 = basicPiece m1 == basicPiece m2
     
+
+getAllTurnMoves :: GameTurn -> [Move]
+getAllTurnMoves turn@(GameTurn board player) = moves where
+    moves = concat $ map (getTurnMoves turn) positions
+    positions = boardPositions board
     
-    -- returns a list of possible 
+getGameMoves :: Game -> [Move]
+getGameMoves (Game gs _) = getAllStateMoves gs 
+
+preformMove :: Game -> Move -> Game
+preformMove game@(Game gs players) move@(Move p1 p2) = newGame where
+    newGame = Game newState3 players
+    newState1 = (updateState gs p1 p2)
+    newState2 = if isJump move
+                    then clearStatePos newState1 jumpedPos
+                    else newState1
+    newState3 = if (canKing movedPiece p2)
+                    then(upgradePieceAt newState2 p2)
+                    else newState2
+    movedPiece = getStatePieceAt newState2 p2
+    
+    jumpedPos = getJumpedPosition move
+    
+
+upgradePieceAt :: GameTurn -> Position -> GameTurn
+upgradePieceAt gt pos = newState where
+    newState = replaceTurnPos gt pos kingedPiece
+    kingedPiece = kingPiece $ getTurnPieceAt gt pos
+    
+isJump :: Move -> Bool
+isJump (Move (sc,sr) (dc, dr)) = diff > 1 where
+    dif = abs $ sr - dr
+
+getJumpedPosition :: Move -> Position
+getJumpedPosition m@(Move(sc, sr)(dc, dr)) = mPos where
+    mPos = (sc+deltaColumn,sr+deltaRow)
+    deltaColumn = if dc >sc then 1 else -1
+    deltaRow - if dr > sr then 1 else -1
+
+
     --Promotes a given peice to a king 
-Promote :: PieceType -> PieceType
-Promote Red = King Red
-Promote Black = King Black
-Promote p = p
+upgradePiece :: PieceType -> PieceType
+upgradePiece Red = King Red
+upgradePiece Black = King Black
+upgradePiece p = p
 
     --Determines if a peice should be kinged at its current position
-CanKing :: PieceType -> Position -> Bool
-CanKing King Red , _ = False -- Don't king if already one
-CanKing Red, (_,1) = True -- King if a red peice reaches bottom row
-CanKing Black, (_,8) = True -- King if Black peice reaches top row
-CanKing _,_ = False -- Handles any other situation
+canKing :: PieceType -> Position -> Bool
+canKing (King _) _ = False -- Don't king if already one
+canKing Red, (_,1) = True -- King if a red peice reaches bottom row
+canKing Black, (_,8) = True -- King if Black peice reaches top row
+canKing _ _ = False -- Handles any other situation
 
 
 --Game Tests
